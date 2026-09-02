@@ -6,6 +6,7 @@ const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const { env } = require("./config/env");
+const { connectDatabase } = require("./config/db");
 const { errorHandler, notFoundHandler } = require("./middleware/errorHandler");
 const routes = require("./routes");
 
@@ -13,6 +14,15 @@ function createApp() {
   const app = express();
 
   app.set("trust proxy", 1);
+
+  app.use(async (_req, _res, next) => {
+    try {
+      await connectDatabase();
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
 
   app.use(
     helmet({
@@ -45,6 +55,10 @@ function createApp() {
   });
 
   app.use("/api/v1", routes);
+  // Vercel functions live under /api; keep /v1 working if the prefix is stripped.
+  if (process.env.VERCEL) {
+    app.use("/v1", routes);
+  }
 
   app.use(notFoundHandler);
   app.use(errorHandler);

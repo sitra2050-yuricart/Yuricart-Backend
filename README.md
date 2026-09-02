@@ -16,6 +16,19 @@ npm run dev
 
 Base URL (local): `http://localhost:5000/api/v1`
 
+## Local vs Vercel
+
+- **Local / PM2:** `npm run dev` or `npm start` — `src/server.js` connects to MongoDB and listens on `PORT` (default 5000).
+- **Vercel:** `api/index.js` exports the same Express app as a serverless function. Do not call `listen()` on Vercel.
+
+Set these in the Vercel project (Production + Preview): `MONGODB_URI`, `JWT_SECRET`, `FRONTEND_URL`, `CLOUDINARY_*`, optional `BREVO_*`, `NODE_ENV=production`.
+
+`FRONTEND_URL` can be a comma-separated list, e.g. `http://localhost:3000,https://www.yuricart.com`.
+
+Atlas: allow Network Access `0.0.0.0/0` (or Vercel IPs), use a `mongodb+srv://` URI with the `yuricart` database name. Import of local data onto Atlas is a separate step after the cluster exists.
+
+Vercel serverless request bodies are capped (~4.5MB on Hobby). Large product videos may fail on Vercel even though local/PM2 allows up to 50MB.
+
 ## Response format
 
 **Success**
