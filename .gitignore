@@ -5,10 +5,12 @@ node_modules/
 .env.production
 dist/
 build/
+temp_auto_push.bat
 coverage/
 logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
 pnpm-debug.log*
-scripts/cloudinary-migration-report-*.json
+scripts/cloudinary-migration-report-*.json.gitignore
+branch_structure.json
