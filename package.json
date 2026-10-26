@@ -5,11 +5,11 @@
   "description": "Yuricart custom ecommerce API",
   "main": "src/server.js",
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "scripts": {
-    "dev": "node --watch src/server.js",
-    "start": "node src/server.js",
+    "dev": "node init && node --watch src/server.js",
+    "start": "node init && node src/server.js",
     "seed:admin": "node scripts/seedAdmin.js",
     "seed:catalog": "node scripts/seedCatalog.js",
     "import:wix": "node scripts/import-wix-products.js",
