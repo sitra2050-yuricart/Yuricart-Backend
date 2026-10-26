@@ -5,7 +5,7 @@
   "description": "Yuricart custom ecommerce API",
   "main": "src/server.js",
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "scripts": {
     "dev": "node --watch src/server.js",
