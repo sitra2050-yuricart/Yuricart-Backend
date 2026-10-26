@@ -16,6 +16,16 @@ async function getSettingsByGroup(group) {
   return group ? grouped[group] || {} : grouped;
 }
 
+async function getPublicWhatsAppNumber() {
+  const setting = await Settings.findOne({ key: "whatsappNumber", group: "general" })
+    .select("value -_id")
+    .lean();
+
+  return typeof setting?.value === "string" && setting.value.trim()
+    ? setting.value
+    : "254768054542";
+}
+
 async function upsertSettings(input) {
   const results = [];
 
@@ -32,4 +42,4 @@ async function upsertSettings(input) {
   return results;
 }
 
-module.exports = { getSettingsByGroup, upsertSettings };
+module.exports = { getSettingsByGroup, getPublicWhatsAppNumber, upsertSettings };
