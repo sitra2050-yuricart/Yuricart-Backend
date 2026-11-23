@@ -22,6 +22,9 @@ const envSchema = z.object({
         .filter(Boolean),
     )
     .pipe(z.array(z.string().url()).min(1)),
+  // Public storefront URL used in emails (password reset links). Falls back to
+  // the first FRONTEND_URL entry.
+  SITE_URL: z.string().url().optional(),
   ADMIN_EMAIL: z.string().email().optional(),
   ADMIN_PASSWORD: z.string().min(8).optional(),
   ADMIN_NAME: z.string().optional(),

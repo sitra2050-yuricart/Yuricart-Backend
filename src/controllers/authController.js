@@ -4,6 +4,8 @@ const { BadRequestError, UnauthorizedError } = require("../utils/ApiError");
 const { asyncHandler } = require("../utils/asyncHandler");
 const { signAdminToken, signCustomerToken } = require("../utils/jwt");
 const { sendSuccess } = require("../utils/response");
+const { sendPasswordResetEmail } = require("../services/emailService");
+const { createResetToken, hashResetToken } = require("../utils/resetToken");
 
 const customerCookieOptions = {
   httpOnly: true,
@@ -18,6 +20,14 @@ const adminCookieOptions = {
   sameSite: env.NODE_ENV === "production" ? "none" : "lax",
   maxAge: 8 * 60 * 60 * 1000,
 };
+
+/** clearCookie only works when path/sameSite/secure match how the cookie was set. */
+function clearCookieOptions({ maxAge, ...options }) {
+  return options;
+}
+
+const GENERIC_RESET_MESSAGE =
+  "If an account exists for that email, we have sent a link to reset the password.";
 
 const healthCheck = asyncHandler(async (_req, res) => {
   sendSuccess(res, {
@@ -61,7 +71,7 @@ const adminLogin = asyncHandler(async (req, res) => {
 });
 
 const adminLogout = asyncHandler(async (_req, res) => {
-  res.clearCookie("admin_token");
+  res.clearCookie("admin_token", clearCookieOptions(adminCookieOptions));
   sendSuccess(res, { message: "Logged out successfully" });
 });
 
@@ -161,7 +171,7 @@ const customerLogin = asyncHandler(async (req, res) => {
 });
 
 const customerLogout = asyncHandler(async (_req, res) => {
-  res.clearCookie("customer_token");
+  res.clearCookie("customer_token", clearCookieOptions(customerCookieOptions));
   sendSuccess(res, { message: "Logged out successfully" });
 });
 
@@ -182,7 +192,56 @@ const getCustomerMe = asyncHandler(async (req, res) => {
   });
 });
 
+const forgotPassword = asyncHandler(async (req, res) => {
+  const email = req.body.email.toLowerCase();
+  const user = await User.findOne({ email });
+
+  // Same answer whether or not the account exists, so emails cannot be probed.
+  if (user && user.role === "customer" && user.status === "active") {
+    const { token, tokenHash, expiresAt } = createResetToken();
+    user.passwordResetTokenHash = tokenHash;
+    user.passwordResetExpires = expiresAt;
+    await user.save();
+
+    const baseUrl = (env.SITE_URL || env.FRONTEND_URL[0]).replace(/\/+$/, "");
+    // Awaited: serverless can stop the process once the response is sent.
+    await sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      resetUrl: `${baseUrl}/reset-password?token=${token}`,
+    });
+  }
+
+  sendSuccess(res, { message: GENERIC_RESET_MESSAGE });
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const { token, password } = req.body;
+
+  const user = await User.findOne({
+    passwordResetTokenHash: hashResetToken(token),
+    passwordResetExpires: { $gt: new Date() },
+  }).select("+passwordResetTokenHash +passwordResetExpires");
+
+  if (!user || user.role !== "customer") {
+    throw new BadRequestError(
+      "This reset link is invalid or has expired. Request a new one.",
+    );
+  }
+
+  user.password = password; // hashed by the pre-save hook
+  user.passwordResetTokenHash = undefined;
+  user.passwordResetExpires = undefined;
+  await user.save();
+
+  sendSuccess(res, {
+    message: "Your password has been changed. You can now log in.",
+  });
+});
+
 module.exports = {
+  forgotPassword,
+  resetPassword,
   healthCheck,
   adminLogin,
   adminLogout,
