@@ -4,8 +4,23 @@ const { BadRequestError, UnauthorizedError } = require("../utils/ApiError");
 const { asyncHandler } = require("../utils/asyncHandler");
 const { signAdminToken, signCustomerToken } = require("../utils/jwt");
 const { sendSuccess } = require("../utils/response");
-const { sendPasswordResetEmail } = require("../services/emailService");
+const { sendPasswordResetEmail, sendVerificationEmail } = require("../services/emailService");
 const { createResetToken, hashResetToken } = require("../utils/resetToken");
+
+const EMAIL_VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Stores a fresh verification token on the user and emails the link. */
+async function issueVerificationEmail(user) {
+  const { token, tokenHash, expiresAt } = createResetToken(
+    Date.now(),
+    EMAIL_VERIFICATION_TTL_MS,
+  );
+  user.emailVerificationTokenHash = tokenHash;
+  user.emailVerificationExpires = expiresAt;
+  await user.save();
+  // Awaited: serverless can stop the process once the response is sent.
+  await sendVerificationEmail({ to: user.email, name: user.name, token });
+}
 
 const customerCookieOptions = {
   httpOnly: true,
@@ -108,6 +123,8 @@ const customerRegister = asyncHandler(async (req, res) => {
     status: "active",
   });
 
+  await issueVerificationEmail(user);
+
   const token = signCustomerToken({
     sub: user._id.toString(),
     email: user.email,
@@ -126,6 +143,7 @@ const customerRegister = asyncHandler(async (req, res) => {
         email: user.email,
         role: user.role,
         phone: user.phone,
+        emailVerified: false,
       },
     },
     201,
@@ -166,6 +184,7 @@ const customerLogin = asyncHandler(async (req, res) => {
       email: user.email,
       role: user.role,
       phone: user.phone,
+      emailVerified: Boolean(user.emailVerified),
     },
   });
 });
@@ -189,7 +208,37 @@ const getCustomerMe = asyncHandler(async (req, res) => {
     role: user.role,
     phone: user.phone,
     status: user.status,
+    emailVerified: Boolean(user.emailVerified),
   });
+});
+
+const verifyEmail = asyncHandler(async (req, res) => {
+  const user = await User.findOne({
+    emailVerificationTokenHash: hashResetToken(req.body.token),
+    emailVerificationExpires: { $gt: new Date() },
+  }).select("+emailVerificationTokenHash +emailVerificationExpires");
+
+  if (!user || user.role !== "customer") {
+    throw new BadRequestError(
+      "This confirmation link is invalid or has expired. Request a new one.",
+    );
+  }
+
+  user.emailVerified = true;
+  user.emailVerificationTokenHash = undefined;
+  user.emailVerificationExpires = undefined;
+  await user.save();
+
+  sendSuccess(res, { message: "Your email is confirmed." });
+});
+
+const resendVerification = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user.sub);
+  if (!user || user.role !== "customer") {
+    throw new UnauthorizedError("Customer not found");
+  }
+  if (!user.emailVerified) await issueVerificationEmail(user);
+  sendSuccess(res, { message: "We have sent a confirmation link to your email." });
 });
 
 const forgotPassword = asyncHandler(async (req, res) => {
@@ -230,6 +279,7 @@ const resetPassword = asyncHandler(async (req, res) => {
   }
 
   user.password = password; // hashed by the pre-save hook
+  user.emailVerified = true; // they just proved they own this mailbox
   user.passwordResetTokenHash = undefined;
   user.passwordResetExpires = undefined;
   await user.save();
@@ -242,6 +292,8 @@ const resetPassword = asyncHandler(async (req, res) => {
 module.exports = {
   forgotPassword,
   resetPassword,
+  verifyEmail,
+  resendVerification,
   healthCheck,
   adminLogin,
   adminLogout,

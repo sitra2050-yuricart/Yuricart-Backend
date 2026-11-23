@@ -8,12 +8,12 @@ function hashResetToken(token) {
 }
 
 /** Creates a single-use token: send `token` by email, store `tokenHash`. */
-function createResetToken(now = Date.now()) {
+function createResetToken(now = Date.now(), ttlMs = RESET_TOKEN_TTL_MS) {
   const token = crypto.randomBytes(32).toString("hex");
   return {
     token,
     tokenHash: hashResetToken(token),
-    expiresAt: new Date(now + RESET_TOKEN_TTL_MS),
+    expiresAt: new Date(now + ttlMs),
   };
 }
 
