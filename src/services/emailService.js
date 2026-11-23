@@ -2,6 +2,7 @@ const { Resend } = require("resend");
 const { env } = require("../config/env");
 const { escapeHtml } = require("../utils/escapeHtml");
 const { signOrderToken } = require("../utils/orderAccess");
+const { renderOrderEmail, STATUS_COPY } = require("./orderEmailTemplates");
 
 function siteUrl() {
   return (env.SITE_URL || env.FRONTEND_URL[0]).replace(/\/+$/, "");
@@ -10,11 +11,6 @@ function siteUrl() {
 /** Link that opens one order without logging in or knowing the email. */
 function orderTrackUrl(orderNumber) {
   return `${siteUrl()}/track?orderNumber=${encodeURIComponent(orderNumber)}&token=${encodeURIComponent(signOrderToken(orderNumber))}`;
-}
-
-function trackButtonHtml(orderNumber) {
-  const url = orderTrackUrl(orderNumber);
-  return `<p style="margin:24px 0"><a href="${escapeHtml(url)}" style="background:#003B73;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold">Track your order</a></p>`;
 }
 
 let resend = null;
@@ -50,60 +46,35 @@ async function sendMail({ to, subject, html }) {
   }
 }
 
-function orderStatusEmailHtml(order, newStatus) {
-  const itemsHtml = order.items
-    .map(
-      (item) =>
-        `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${escapeHtml(item.title)}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:center">${item.quantity}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right">KES ${(item.price * item.quantity).toLocaleString()}</td></tr>`,
-    )
-    .join("");
-
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
-  <h2 style="color:#333">Order Status Update</h2>
-  <p>Hi <strong>${escapeHtml(order.customerName)}</strong>,</p>
-  <p>The status of your order <strong>#${escapeHtml(order.orderNumber)}</strong> has been updated to:</p>
-  <p style="font-size:18px;font-weight:bold;color:#2563eb;text-transform:capitalize">${escapeHtml(newStatus)}</p>
-  <table style="width:100%;border-collapse:collapse;margin:16px 0">
-    <thead><tr style="background:#f3f4f6"><th style="padding:8px 12px;text-align:left">Item</th><th style="padding:8px 12px;text-align:center">Qty</th><th style="padding:8px 12px;text-align:right">Price</th></tr></thead>
-    <tbody>${itemsHtml}</tbody>
-  </table>
-  <p style="font-size:16px"><strong>Total: KES ${order.total.toLocaleString()}</strong></p>
-  ${trackButtonHtml(order.orderNumber)}
-  <p style="color:#666;margin-top:24px">Thank you for shopping with Yuricart!</p>
-</body>
-</html>`;
+function orderConfirmationEmailHtml(order) {
+  return renderOrderEmail({
+    order,
+    heading: "Thank you for your order",
+    intro: "we have received it. Here is what you ordered.",
+    statusKey: "pending",
+    trackUrl: orderTrackUrl(order.orderNumber),
+    siteUrl: siteUrl(),
+  });
 }
 
-function orderConfirmationEmailHtml(order) {
-  const itemsHtml = order.items
-    .map(
-      (item) =>
-        `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${escapeHtml(item.title)}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:center">${item.quantity}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right">KES ${(item.price * item.quantity).toLocaleString()}</td></tr>`,
-    )
-    .join("");
+const STATUS_HEADINGS = {
+  confirmed: "Your order is confirmed",
+  processing: "We are preparing your order",
+  shipped: "Your order is on its way",
+  delivered: "Your order was delivered",
+  cancelled: "Your order was cancelled",
+};
 
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
-  <h2 style="color:#333">Order Confirmed!</h2>
-  <p>Hi <strong>${escapeHtml(order.customerName)}</strong>,</p>
-  <p>Thank you for your order! Your order <strong>#${escapeHtml(order.orderNumber)}</strong> has been placed successfully.</p>
-  <table style="width:100%;border-collapse:collapse;margin:16px 0">
-    <thead><tr style="background:#f3f4f6"><th style="padding:8px 12px;text-align:left">Item</th><th style="padding:8px 12px;text-align:center">Qty</th><th style="padding:8px 12px;text-align:right">Price</th></tr></thead>
-    <tbody>${itemsHtml}</tbody>
-  </table>
-  <p style="font-size:16px"><strong>Total: KES ${order.total.toLocaleString()}</strong></p>
-  ${trackButtonHtml(order.orderNumber)}
-  <p style="color:#666;margin-top:24px">We will notify you when your order status changes.</p>
-  <p style="color:#666">Thank you for shopping with Yuricart!</p>
-</body>
-</html>`;
+function orderStatusEmailHtml(order, newStatus) {
+  const copy = STATUS_COPY[newStatus];
+  return renderOrderEmail({
+    order,
+    heading: STATUS_HEADINGS[newStatus] || "Your order was updated",
+    intro: "here is the latest on your order.",
+    statusKey: copy ? newStatus : undefined,
+    trackUrl: orderTrackUrl(order.orderNumber),
+    siteUrl: siteUrl(),
+  });
 }
 
 function productRequestEmailHtml({ customerName, customerEmail, productName, quantity, message }) {
@@ -332,6 +303,8 @@ async function sendProductRequestEmail({ customerName, customerEmail, productNam
 module.exports = {
   sendOrderConfirmationEmail,
   sendOrderStatusEmail,
+  orderConfirmationEmailHtml,
+  orderStatusEmailHtml,
   sendAdminNewOrderEmail,
   adminNewOrderEmailHtml,
   getOrderNotifyRecipients,
