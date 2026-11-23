@@ -7,6 +7,7 @@ const {
   listAdminProducts,
   listProductsByCategorySlug,
   listPublicProducts,
+  suggestProducts,
   updateProduct,
 } = require("../services/productService");
 const { asyncHandler } = require("../utils/asyncHandler");
@@ -43,6 +44,13 @@ function normalizeFormBody(body) {
   }
   return result;
 }
+
+const getProductSuggestions = asyncHandler(async (req, res) => {
+  const items = await suggestProducts(req.query.q);
+  // Same typed text gives the same answer for a while: lighter on the database.
+  res.set("Cache-Control", "public, max-age=30");
+  sendSuccess(res, items);
+});
 
 const getPublicProducts = asyncHandler(async (req, res) => {
   const result = await listPublicProducts(req.query);
@@ -135,6 +143,7 @@ const submitProductRequest = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  getProductSuggestions,
   getPublicProducts,
   getPublicProduct,
   getPublicRelatedProducts,
