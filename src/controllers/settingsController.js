@@ -1,6 +1,7 @@
 const {
   getSettingsByGroup,
   getPublicWhatsAppNumber,
+  getPublicShippingRate,
   upsertSettings,
 } = require("../services/settingsService");
 const { asyncHandler } = require("../utils/asyncHandler");
@@ -19,8 +20,11 @@ const patchAdminSettings = asyncHandler(async (req, res) => {
 });
 
 const getPublicStoreSettings = asyncHandler(async (_req, res) => {
-  const whatsappNumber = await getPublicWhatsAppNumber();
-  sendSuccess(res, { whatsappNumber });
+  const [whatsappNumber, shippingRate] = await Promise.all([
+    getPublicWhatsAppNumber(),
+    getPublicShippingRate(),
+  ]);
+  sendSuccess(res, { whatsappNumber, shippingRate });
 });
 
 module.exports = { getAdminSettings, patchAdminSettings, getPublicStoreSettings };
