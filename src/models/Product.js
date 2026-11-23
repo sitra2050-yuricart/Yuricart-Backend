@@ -71,6 +71,8 @@ const productSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, trim: true },
     slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    // Old slugs kept after a rename so old links redirect instead of 404.
+    previousSlugs: { type: [String], default: [], index: true },
     description: { type: String },
     shortDescription: { type: String, trim: true },
     seoTitle: { type: String, trim: true, maxlength: 70 },

@@ -7,6 +7,7 @@ const { validateProductPricing } = require("../utils/pricing");
 const { buildPaginationMeta, getPagination } = require("../utils/pagination");
 const { parseBoolean, parseSort } = require("../utils/query");
 const { ensureUniqueSlug } = require("../utils/slug");
+const { planSlugChange } = require("../utils/slugHistory");
 const { uploadBuffer, uploadVideoBuffer, deleteFromCloudinary, deleteMultipleFromCloudinary, PRODUCT_IMAGE_FOLDER, GALLERY_IMAGE_FOLDER, PRODUCT_VIDEO_FOLDER } = require("./uploadService");
 
 const productPopulate = [
@@ -325,12 +326,14 @@ async function updateProduct(id, input, files, removedGalleryPublicIds = [], rem
     if (pricingError) throw new BadRequestError(pricingError);
   }
 
-  let slug;
-  if (input.slug) {
-    slug = await ensureUniqueSlug(Product, input.slug, id);
-  } else if (input.title && input.title !== existing.title) {
-    slug = await ensureUniqueSlug(Product, input.title, id);
-  }
+  // The URL only changes when a new slug is asked for. Editing the title no
+  // longer rewrites it, and a deliberate change remembers the old slug.
+  const slugPlan = planSlugChange({
+    currentSlug: existing.slug,
+    nextSlug: input.slug ? await ensureUniqueSlug(Product, input.slug, id) : undefined,
+    previousSlugs: existing.previousSlugs,
+  });
+  const slug = slugPlan.slug;
 
   const existingImages = existing.images;
   let keptGallery = existingImages?.gallery || [];
@@ -398,6 +401,7 @@ async function updateProduct(id, input, files, removedGalleryPublicIds = [], rem
   Object.assign(existing, {
     ...updateData,
     ...(slug ? { slug } : {}),
+    previousSlugs: slugPlan.previousSlugs,
     images: imagesWithAlts,
     video,
     category: input.category === null ? undefined : input.category ?? existing.category,

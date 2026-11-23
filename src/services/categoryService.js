@@ -3,6 +3,7 @@ const { NotFoundError } = require("../utils/ApiError");
 const { buildPaginationMeta, getPagination } = require("../utils/pagination");
 const { parseSort } = require("../utils/query");
 const { ensureUniqueSlug } = require("../utils/slug");
+const { planSlugChange } = require("../utils/slugHistory");
 const { uploadBuffer, deleteFromCloudinary, CATEGORY_IMAGE_FOLDER } = require("./uploadService");
 
 function buildCategoryFilter(query, publicOnly = false) {
@@ -83,12 +84,13 @@ async function updateCategory(id, input, file) {
   const existing = await Category.findById(id);
   if (!existing) throw new NotFoundError("Category not found");
 
-  let slug = input.slug;
-  if (input.slug) {
-    slug = await ensureUniqueSlug(Category, input.slug, id);
-  } else if (input.name && input.name !== existing.name) {
-    slug = await ensureUniqueSlug(Category, input.name, id);
-  }
+  // The URL only changes when a new slug is asked for; the old one is kept.
+  const slugPlan = planSlugChange({
+    currentSlug: existing.slug,
+    nextSlug: input.slug ? await ensureUniqueSlug(Category, input.slug, id) : undefined,
+    previousSlugs: existing.previousSlugs,
+  });
+  const slug = slugPlan.slug;
 
   const rawImage = existing.image;
   const currentPublicId = rawImage?.publicId;
@@ -127,6 +129,7 @@ async function updateCategory(id, input, file) {
   Object.assign(existing, {
     ...updateData,
     ...(slug ? { slug } : {}),
+    previousSlugs: slugPlan.previousSlugs,
     image,
   });
   await existing.save();
