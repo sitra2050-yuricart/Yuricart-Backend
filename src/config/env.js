@@ -44,9 +44,10 @@ const envSchema = z.object({
   CLOUDINARY_API_KEY: z.string().min(1, "CLOUDINARY_API_KEY is required"),
   CLOUDINARY_API_SECRET: z.string().min(1, "CLOUDINARY_API_SECRET is required"),
 
-  BREVO_API_KEY: z.string().optional(),
-  BREVO_FROM_NAME: z.string().default("Yuricart"),
-  BREVO_FROM_EMAIL: z.string().default("noreply@yuricart.com"),
+  RESEND_API_KEY: z.string().optional(),
+  EMAIL_FROM_NAME: z.string().default("Yuricart"),
+  // Must be on a domain verified in Resend (noumandev.com).
+  EMAIL_FROM_ADDRESS: z.string().default("noreply@noumandev.com"),
 });
 
 const parsed = envSchema.safeParse(process.env);

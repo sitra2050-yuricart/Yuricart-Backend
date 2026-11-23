@@ -21,7 +21,7 @@ Base URL (local): `http://localhost:5000/api/v1`
 - **Local / PM2:** `npm run dev` or `npm start` — `src/server.js` connects to MongoDB and listens on `PORT` (default 5000).
 - **Vercel:** `api/index.js` exports the same Express app as a serverless function. Do not call `listen()` on Vercel.
 
-Set these in the Vercel project (Production + Preview): `MONGODB_URI`, `JWT_SECRET`, `FRONTEND_URL`, `CLOUDINARY_*`, optional `BREVO_*`, `NODE_ENV=production`.
+Set these in the Vercel project (Production + Preview): `MONGODB_URI`, `JWT_SECRET`, `FRONTEND_URL`, `CLOUDINARY_*`, optional `RESEND_API_KEY`, `EMAIL_FROM_*`, `ORDER_NOTIFY_EMAILS`, `NODE_ENV=production`.
 
 `FRONTEND_URL` can be a comma-separated list, e.g. `http://localhost:3000,https://www.yuricart.com`.
 
