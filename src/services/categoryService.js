@@ -1,4 +1,6 @@
 const { Category } = require("../models/Category");
+const { Product } = require("../models/Product");
+const { attachProductCounts } = require("../utils/categoryCounts");
 const { NotFoundError } = require("../utils/ApiError");
 const { buildPaginationMeta, getPagination } = require("../utils/pagination");
 const { parseSort } = require("../utils/query");
@@ -22,6 +24,16 @@ function buildCategoryFilter(query, publicOnly = false) {
   return filter;
 }
 
+/** Active product count per category id, in one query. */
+async function getActiveProductCounts(categoryIds) {
+  if (!categoryIds.length) return new Map();
+  const rows = await Product.aggregate([
+    { $match: { status: "active", category: { $in: categoryIds } } },
+    { $group: { _id: "$category", count: { $sum: 1 } } },
+  ]);
+  return new Map(rows.map((row) => [String(row._id), row.count]));
+}
+
 async function listPublicCategories(query) {
   const { page, limit, skip } = getPagination(query);
   const filter = buildCategoryFilter(query, true);
@@ -32,7 +44,11 @@ async function listPublicCategories(query) {
     Category.countDocuments(filter),
   ]);
 
-  return { items, meta: buildPaginationMeta(total, page, limit) };
+  const counts = await getActiveProductCounts(items.map((item) => item._id));
+  return {
+    items: attachProductCounts(items, counts),
+    meta: buildPaginationMeta(total, page, limit),
+  };
 }
 
 async function listAdminCategories(query) {
@@ -51,7 +67,8 @@ async function listAdminCategories(query) {
 async function getPublicCategoryBySlug(slug) {
   const category = await Category.findOne({ slug, status: "active" }).lean();
   if (!category) throw new NotFoundError("Category not found");
-  return category;
+  const counts = await getActiveProductCounts([category._id]);
+  return attachProductCounts([category], counts)[0];
 }
 
 async function getAdminCategoryById(id) {
