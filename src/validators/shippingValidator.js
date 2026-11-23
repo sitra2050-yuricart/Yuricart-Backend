@@ -9,6 +9,11 @@ const createShippingSchema = z.object({
   status: z.enum(["active", "inactive"]).optional(),
 });
 
+const quoteShippingSchema = z.object({
+  subtotal: z.coerce.number().min(0),
+  region: z.string().max(120).optional(),
+});
+
 const updateShippingSchema = createShippingSchema.partial();
 
 const adminShippingQuerySchema = paginationQuerySchema.extend({
@@ -18,5 +23,6 @@ const adminShippingQuerySchema = paginationQuerySchema.extend({
 module.exports = {
   createShippingSchema,
   updateShippingSchema,
+  quoteShippingSchema,
   adminShippingQuerySchema,
 };

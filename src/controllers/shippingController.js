@@ -3,10 +3,17 @@ const {
   deleteShipping,
   getShippingById,
   listAdminShipping,
+  quoteShipping,
   updateShipping,
 } = require("../services/shippingService");
 const { asyncHandler } = require("../utils/asyncHandler");
 const { sendSuccess } = require("../utils/response");
+
+const getShippingQuote = asyncHandler(async (req, res) => {
+  const { subtotal, region } = req.body;
+  res.set("Cache-Control", "no-store");
+  sendSuccess(res, await quoteShipping(subtotal, region));
+});
 
 const getAdminShippingRules = asyncHandler(async (req, res) => {
   const result = await listAdminShipping(req.query);
@@ -34,6 +41,7 @@ const deleteAdminShippingRule = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  getShippingQuote,
   getAdminShippingRules,
   getAdminShippingRule,
   createAdminShippingRule,
