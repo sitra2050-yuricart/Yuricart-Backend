@@ -23,6 +23,10 @@ const userSchema = new mongoose.Schema(
       enum: ["active", "blocked"],
       default: "active",
     },
+    // Orders placed as a guest are only shown to an account whose email is verified.
+    emailVerified: { type: Boolean, default: false },
+    emailVerificationTokenHash: { type: String, select: false },
+    emailVerificationExpires: { type: Date, select: false },
     // Single-use password reset: only the hash of the emailed token is stored.
     passwordResetTokenHash: { type: String, select: false },
     passwordResetExpires: { type: Date, select: false },

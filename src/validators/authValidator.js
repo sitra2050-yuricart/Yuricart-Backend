@@ -22,6 +22,10 @@ const resetPasswordSchema = z.object({
   password: z.string().min(8).max(128),
 });
 
+const verifyEmailSchema = z.object({
+  token: z.string().min(32).max(128),
+});
+
 const adminCustomerQuerySchema = paginationQuerySchema.extend({
   q: z.string().optional(),
   status: z.enum(["active", "blocked"]).optional(),
@@ -36,6 +40,7 @@ module.exports = {
   customerLoginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  verifyEmailSchema,
   adminCustomerQuerySchema,
   updateCustomerStatusSchema,
 };
