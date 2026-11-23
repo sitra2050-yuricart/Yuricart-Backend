@@ -1,3 +1,4 @@
+const { buildSuggestFilter } = require("../utils/productSuggest");
 const mongoose = require("mongoose");
 const { Brand } = require("../models/Brand");
 const { Category } = require("../models/Category");
@@ -204,6 +205,20 @@ async function resolveProductVideo(files, existingVideo, removeVideo = false) {
   return existingVideo?.url
     ? existingVideo
     : { url: "" };
+}
+
+const SUGGESTION_LIMIT = 6;
+
+/** A few products for the search box dropdown: light fields only, in-stock first. */
+async function suggestProducts(q) {
+  const filter = buildSuggestFilter(q);
+  if (!filter) return [];
+
+  return Product.find(filter)
+    .select("title slug price salePrice stock images currency")
+    .sort({ stock: -1, createdAt: -1 })
+    .limit(SUGGESTION_LIMIT)
+    .lean();
 }
 
 async function listPublicProducts(query) {
@@ -475,6 +490,7 @@ async function getRelatedProducts(slug, limit = 8) {
 }
 
 module.exports = {
+  suggestProducts,
   listPublicProducts,
   listAdminProducts,
   getPublicProductBySlug,

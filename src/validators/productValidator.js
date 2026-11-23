@@ -21,6 +21,10 @@ const publicProductQuerySchema = paginationQuerySchema.extend({
   tags: z.string().optional(),
 });
 
+const productSuggestQuerySchema = z.object({
+  q: z.string().trim().min(1).max(80),
+});
+
 const adminProductQuerySchema = publicProductQuerySchema.extend({
   status: z.enum(["draft", "active", "archived"]).optional(),
 });
@@ -58,6 +62,7 @@ const updateProductSchema = createProductSchema.partial();
 
 module.exports = {
   publicProductQuerySchema,
+  productSuggestQuerySchema,
   adminProductQuerySchema,
   createProductSchema,
   updateProductSchema,
