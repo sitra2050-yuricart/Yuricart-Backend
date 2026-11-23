@@ -1,4 +1,6 @@
 const { Brand } = require("../models/Brand");
+const { Product } = require("../models/Product");
+const { attachProductCounts } = require("../utils/categoryCounts");
 const { NotFoundError } = require("../utils/ApiError");
 const { buildPaginationMeta, getPagination } = require("../utils/pagination");
 const { parseSort } = require("../utils/query");
@@ -21,6 +23,16 @@ function buildBrandFilter(query, publicOnly = false) {
   return filter;
 }
 
+/** Active product count per brand id, in one query. */
+async function getActiveProductCountsByBrand(brandIds) {
+  if (!brandIds.length) return new Map();
+  const rows = await Product.aggregate([
+    { $match: { status: "active", brand: { $in: brandIds } } },
+    { $group: { _id: "$brand", count: { $sum: 1 } } },
+  ]);
+  return new Map(rows.map((row) => [String(row._id), row.count]));
+}
+
 async function listPublicBrands(query) {
   const { page, limit, skip } = getPagination(query);
   const filter = buildBrandFilter(query, true);
@@ -31,7 +43,11 @@ async function listPublicBrands(query) {
     Brand.countDocuments(filter),
   ]);
 
-  return { items, meta: buildPaginationMeta(total, page, limit) };
+  const counts = await getActiveProductCountsByBrand(items.map((item) => item._id));
+  return {
+    items: attachProductCounts(items, counts),
+    meta: buildPaginationMeta(total, page, limit),
+  };
 }
 
 async function listAdminBrands(query) {

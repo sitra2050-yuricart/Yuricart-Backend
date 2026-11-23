@@ -17,6 +17,7 @@ const publicProductQuerySchema = paginationQuerySchema.extend({
   featured: booleanStringSchema,
   newArrival: booleanStringSchema,
   bestSeller: booleanStringSchema,
+  inStock: booleanStringSchema,
   tags: z.string().optional(),
 });
 
