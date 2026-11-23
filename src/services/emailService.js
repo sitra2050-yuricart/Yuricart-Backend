@@ -1,5 +1,6 @@
 const SibApiV3Sdk = require("sib-api-v3-sdk");
 const { env } = require("../config/env");
+const { escapeHtml } = require("../utils/escapeHtml");
 
 let defaultClient = null;
 let apiInstance = null;
@@ -107,6 +108,30 @@ function productRequestEmailHtml({ customerName, customerEmail, productName, qua
 </html>`;
 }
 
+function passwordResetEmailHtml({ name, resetUrl }) {
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#222">
+  <h2 style="color:#003B73">Reset your password</h2>
+  <p>Hi ${escapeHtml(name)},</p>
+  <p>We received a request to reset your Yuricart password. This link works once and expires in 1 hour.</p>
+  <p style="margin:24px 0"><a href="${escapeHtml(resetUrl)}" style="background:#003B73;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold">Choose a new password</a></p>
+  <p style="font-size:13px;color:#555">If the button does not work, copy this link into your browser:<br/>${escapeHtml(resetUrl)}</p>
+  <p style="font-size:13px;color:#555">Did not ask for this? You can ignore this email. Your password stays the same.</p>
+</body>
+</html>`;
+}
+
+async function sendPasswordResetEmail({ to, name, resetUrl }) {
+  await sendMail({
+    to,
+    subject: "Reset your Yuricart password",
+    html: passwordResetEmailHtml({ name, resetUrl }),
+  });
+}
+
 async function sendOrderConfirmationEmail(order) {
   if (!order.email) return;
   await sendMail({
@@ -141,7 +166,7 @@ async function sendProductRequestEmail({ customerName, customerEmail, productNam
     await sendMail({
       to: customerEmail,
       subject: "We received your product request",
-      html: `<p>Hi <strong>${customerName}</strong>,</p><p>Thank you for your interest in <strong>${productName}</strong>. We have received your request and will notify you when it becomes available.</p><p>Best regards,<br/>Yuricart Team</p>`,
+      html: `<p>Hi <strong>${escapeHtml(customerName)}</strong>,</p><p>Thank you for your interest in <strong>${escapeHtml(productName)}</strong>. We have received your request and will notify you when it becomes available.</p><p>Best regards,<br/>Yuricart Team</p>`,
     });
   }
 }
@@ -149,5 +174,7 @@ async function sendProductRequestEmail({ customerName, customerEmail, productNam
 module.exports = {
   sendOrderConfirmationEmail,
   sendOrderStatusEmail,
+  sendPasswordResetEmail,
   sendProductRequestEmail,
+  passwordResetEmailHtml,
 };
