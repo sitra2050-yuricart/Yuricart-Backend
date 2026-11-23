@@ -1,30 +1,25 @@
 const { Shipping } = require("../models/Shipping");
 const { NotFoundError } = require("../utils/ApiError");
 const { buildPaginationMeta, getPagination } = require("../utils/pagination");
+const { pickShippingRule, shippingCostForRule } = require("../utils/shippingRules");
+
+async function loadActiveRules() {
+  return Shipping.find({ status: "active" }).sort({ rate: 1 }).lean();
+}
 
 async function calculateShippingCost(subtotal, region) {
-  const rules = await Shipping.find({ status: "active" }).sort({ rate: 1 }).lean();
+  return shippingCostForRule(pickShippingRule(await loadActiveRules(), region), subtotal);
+}
 
-  if (!rules.length) return 0;
-
-  let matched;
-
-  if (region) {
-    const normalizedRegion = region.trim().toLowerCase();
-    matched = rules.find((rule) =>
-      rule.regions.some((r) => r.trim().toLowerCase() === normalizedRegion),
-    );
-  }
-
-  if (!matched) {
-    matched = rules.find((rule) => !rule.regions.length) || rules[0];
-  }
-
-  if (matched.freeAbove !== undefined && subtotal >= matched.freeAbove) {
-    return 0;
-  }
-
-  return matched.rate;
+/** What delivery will cost, plus the threshold for free delivery when there is one. */
+async function quoteShipping(subtotal, region) {
+  const rule = pickShippingRule(await loadActiveRules(), region);
+  const shipping = shippingCostForRule(rule, subtotal);
+  return {
+    shipping,
+    freeAbove: rule && rule.freeAbove !== undefined && rule.freeAbove !== null ? rule.freeAbove : null,
+    zone: rule ? rule.name : null,
+  };
 }
 
 async function listAdminShipping(query) {
@@ -68,6 +63,7 @@ async function deleteShipping(id) {
 }
 
 module.exports = {
+  quoteShipping,
   calculateShippingCost,
   listAdminShipping,
   getShippingById,

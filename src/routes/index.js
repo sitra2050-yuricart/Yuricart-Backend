@@ -52,6 +52,7 @@ const publicOrdersRoutes = require("./public/orders.routes");
 const publicProductsRoutes = require("./public/products.routes");
 const publicProductRequestsRoutes = require("./public/productRequests.routes");
 const publicSettingsRoutes = require("./public/settings.routes");
+const publicShippingRoutes = require("./public/shipping.routes");
 const publicRedirectsRoutes = require("./public/redirects.routes");
 const adminRedirectsRoutes = require("./admin/redirects.routes");
 
@@ -92,6 +93,8 @@ router.use("/banners", publicBannersRoutes);
 router.use("/homepage", publicHomepageRoutes);
 
 router.use("/settings", publicSettingsRoutes);
+
+router.use("/shipping", publicShippingRoutes);
 
 router.use("/redirects", publicRedirectsRoutes);
 
