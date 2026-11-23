@@ -5,7 +5,11 @@ const { buildPaginationMeta, getPagination } = require("../utils/pagination");
 const { parseSort } = require("../utils/query");
 const { incrementCouponUsage, validateCoupon } = require("./couponService");
 const { calculateShippingCost } = require("./shippingService");
-const { sendOrderConfirmationEmail, sendOrderStatusEmail } = require("./emailService");
+const {
+  sendAdminNewOrderEmail,
+  sendOrderConfirmationEmail,
+  sendOrderStatusEmail,
+} = require("./emailService");
 const { getLineUnitPrice } = require("../utils/pricing");
 
 function matchVariant(variants, options) {
@@ -184,11 +188,22 @@ async function createOrder(input, customerId, customerEmail) {
     await incrementCouponUsage(couponId);
   }
 
-  sendOrderConfirmationEmail(order.toObject()).catch((err) =>
-    console.error("Failed to send order confirmation email:", err.message),
-  );
+  // Email the customer and the shop owner. Awaited: on serverless the process can
+  // stop right after the response, which silently dropped fire-and-forget sends.
+  // Failures are logged but never fail the order.
+  const placed = order.toObject();
+  const notifications = await Promise.allSettled([
+    sendOrderConfirmationEmail(placed),
+    sendAdminNewOrderEmail(placed),
+  ]);
+  notifications.forEach((result, index) => {
+    if (result.status === "rejected") {
+      const label = index === 0 ? "customer confirmation" : "owner alert";
+      console.error(`Order ${placed.orderNumber}: ${label} email failed:`, result.reason?.message);
+    }
+  });
 
-  return order.toObject();
+  return placed;
 }
 
 async function getOrderByNumber(orderNumber) {
