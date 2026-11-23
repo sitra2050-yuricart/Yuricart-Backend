@@ -2,6 +2,7 @@ const { Shipping } = require("../models/Shipping");
 const { NotFoundError } = require("../utils/ApiError");
 const { buildPaginationMeta, getPagination } = require("../utils/pagination");
 const { pickShippingRule, shippingCostForRule } = require("../utils/shippingRules");
+const { splitShippingInput } = require("../utils/shippingInput");
 
 async function loadActiveRules() {
   return Shipping.find({ status: "active" }).sort({ rate: 1 }).lean();
@@ -43,11 +44,17 @@ async function getShippingById(id) {
 }
 
 async function createShipping(input) {
-  return Shipping.create(input);
+  const { set } = splitShippingInput(input);
+  return Shipping.create(set);
 }
 
 async function updateShipping(id, input) {
-  const rule = await Shipping.findByIdAndUpdate(id, input, {
+  const { set, unset } = splitShippingInput(input);
+  const update = {};
+  if (Object.keys(set).length) update.$set = set;
+  if (Object.keys(unset).length) update.$unset = unset;
+
+  const rule = await Shipping.findByIdAndUpdate(id, update, {
     new: true,
     runValidators: true,
   }).lean();
