@@ -11,6 +11,7 @@ const {
   sendOrderStatusEmail,
 } = require("./emailService");
 const { getLineUnitPrice } = require("../utils/pricing");
+const { verifyOrderToken } = require("../utils/orderAccess");
 
 function matchVariant(variants, options) {
   if (!options || !Object.keys(options).length) return undefined;
@@ -215,28 +216,54 @@ async function getOrderByNumber(orderNumber) {
   return order;
 }
 
-async function trackOrder(orderNumber, email) {
-  const order = await Order.findOne({
-    orderNumber,
-    email: email.toLowerCase(),
-  })
+async function trackOrder(orderNumber, { email, token }) {
+  const notFound = () =>
+    new NotFoundError("Order not found. Check order number and email.");
+  const filter = { orderNumber };
+
+  if (token) {
+    // An emailed link: valid only for the order it was issued for.
+    let issuedFor;
+    try {
+      issuedFor = verifyOrderToken(token);
+    } catch {
+      throw notFound();
+    }
+    if (issuedFor !== orderNumber) throw notFound();
+  } else {
+    filter.email = email.toLowerCase();
+  }
+
+  const order = await Order.findOne(filter)
     .select(
-      "orderNumber orderStatus paymentStatus paymentMethod trackingNumber items subtotal shipping discount total createdAt updatedAt",
+      "orderNumber orderStatus paymentStatus paymentMethod trackingNumber items subtotal shipping discount total customerName email phone address city county createdAt updatedAt",
     )
     .lean();
 
-  if (!order) {
-    throw new NotFoundError("Order not found. Check order number and email.");
-  }
+  if (!order) throw notFound();
 
   return order;
 }
 
-async function getUserOrders(userId, userEmail, query) {
+/** Orders placed with an email address, newest first (for the "send my order numbers" email). */
+async function findOrdersByEmail(email) {
+  return Order.find({ email: email.toLowerCase() })
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .select("orderNumber orderStatus total createdAt")
+    .lean();
+}
+
+/**
+ * A customer's orders. Orders placed while logged in always count. Orders placed as a
+ * guest with the same email only count once the account's email is verified, otherwise
+ * anyone could sign up with someone else's address and read their orders.
+ */
+async function getUserOrders(userId, userEmail, query, emailVerified = false) {
   const { page, limit, skip } = getPagination(query);
-  const filter = {
-    $or: [{ customer: userId }, { email: userEmail }],
-  };
+  const filter = emailVerified
+    ? { $or: [{ customer: userId }, { email: userEmail.toLowerCase() }] }
+    : { customer: userId };
 
   const [items, total] = await Promise.all([
     Order.find(filter)
@@ -348,6 +375,7 @@ module.exports = {
   createOrder,
   getOrderByNumber,
   trackOrder,
+  findOrdersByEmail,
   getUserOrders,
   listAdminOrders,
   getAdminOrderById,

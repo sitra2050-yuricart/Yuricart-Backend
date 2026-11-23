@@ -1,6 +1,17 @@
 const { Resend } = require("resend");
 const { env } = require("../config/env");
 const { escapeHtml } = require("../utils/escapeHtml");
+const { signOrderToken } = require("../utils/orderAccess");
+const { renderOrderEmail, STATUS_COPY } = require("./orderEmailTemplates");
+
+function siteUrl() {
+  return (env.SITE_URL || env.FRONTEND_URL[0]).replace(/\/+$/, "");
+}
+
+/** Link that opens one order without logging in or knowing the email. */
+function orderTrackUrl(orderNumber) {
+  return `${siteUrl()}/track?orderNumber=${encodeURIComponent(orderNumber)}&token=${encodeURIComponent(signOrderToken(orderNumber))}`;
+}
 
 let resend = null;
 
@@ -35,58 +46,35 @@ async function sendMail({ to, subject, html }) {
   }
 }
 
-function orderStatusEmailHtml(order, newStatus) {
-  const itemsHtml = order.items
-    .map(
-      (item) =>
-        `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${escapeHtml(item.title)}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:center">${item.quantity}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right">KES ${(item.price * item.quantity).toLocaleString()}</td></tr>`,
-    )
-    .join("");
-
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
-  <h2 style="color:#333">Order Status Update</h2>
-  <p>Hi <strong>${escapeHtml(order.customerName)}</strong>,</p>
-  <p>The status of your order <strong>#${escapeHtml(order.orderNumber)}</strong> has been updated to:</p>
-  <p style="font-size:18px;font-weight:bold;color:#2563eb;text-transform:capitalize">${escapeHtml(newStatus)}</p>
-  <table style="width:100%;border-collapse:collapse;margin:16px 0">
-    <thead><tr style="background:#f3f4f6"><th style="padding:8px 12px;text-align:left">Item</th><th style="padding:8px 12px;text-align:center">Qty</th><th style="padding:8px 12px;text-align:right">Price</th></tr></thead>
-    <tbody>${itemsHtml}</tbody>
-  </table>
-  <p style="font-size:16px"><strong>Total: KES ${order.total.toLocaleString()}</strong></p>
-  <p style="color:#666;margin-top:24px">Thank you for shopping with Yuricart!</p>
-</body>
-</html>`;
+function orderConfirmationEmailHtml(order) {
+  return renderOrderEmail({
+    order,
+    heading: "Thank you for your order",
+    intro: "we have received it. Here is what you ordered.",
+    statusKey: "pending",
+    trackUrl: orderTrackUrl(order.orderNumber),
+    siteUrl: siteUrl(),
+  });
 }
 
-function orderConfirmationEmailHtml(order) {
-  const itemsHtml = order.items
-    .map(
-      (item) =>
-        `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee">${escapeHtml(item.title)}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:center">${item.quantity}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right">KES ${(item.price * item.quantity).toLocaleString()}</td></tr>`,
-    )
-    .join("");
+const STATUS_HEADINGS = {
+  confirmed: "Your order is confirmed",
+  processing: "We are preparing your order",
+  shipped: "Your order is on its way",
+  delivered: "Your order was delivered",
+  cancelled: "Your order was cancelled",
+};
 
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
-  <h2 style="color:#333">Order Confirmed!</h2>
-  <p>Hi <strong>${escapeHtml(order.customerName)}</strong>,</p>
-  <p>Thank you for your order! Your order <strong>#${escapeHtml(order.orderNumber)}</strong> has been placed successfully.</p>
-  <table style="width:100%;border-collapse:collapse;margin:16px 0">
-    <thead><tr style="background:#f3f4f6"><th style="padding:8px 12px;text-align:left">Item</th><th style="padding:8px 12px;text-align:center">Qty</th><th style="padding:8px 12px;text-align:right">Price</th></tr></thead>
-    <tbody>${itemsHtml}</tbody>
-  </table>
-  <p style="font-size:16px"><strong>Total: KES ${order.total.toLocaleString()}</strong></p>
-  <p style="color:#666;margin-top:24px">We will notify you when your order status changes.</p>
-  <p style="color:#666">Thank you for shopping with Yuricart!</p>
-</body>
-</html>`;
+function orderStatusEmailHtml(order, newStatus) {
+  const copy = STATUS_COPY[newStatus];
+  return renderOrderEmail({
+    order,
+    heading: STATUS_HEADINGS[newStatus] || "Your order was updated",
+    intro: "here is the latest on your order.",
+    statusKey: copy ? newStatus : undefined,
+    trackUrl: orderTrackUrl(order.orderNumber),
+    siteUrl: siteUrl(),
+  });
 }
 
 function productRequestEmailHtml({ customerName, customerEmail, productName, quantity, message }) {
@@ -129,6 +117,58 @@ async function sendPasswordResetEmail({ to, name, resetUrl }) {
     to,
     subject: "Reset your Yuricart password",
     html: passwordResetEmailHtml({ name, resetUrl }),
+  });
+}
+
+function verifyEmailHtml({ name, verifyUrl }) {
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#222">
+  <h2 style="color:#003B73">Confirm your email</h2>
+  <p>Hi ${escapeHtml(name)},</p>
+  <p>Confirm this email address to see your past orders in your Yuricart account. The link works for 24 hours.</p>
+  <p style="margin:24px 0"><a href="${escapeHtml(verifyUrl)}" style="background:#003B73;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:bold">Confirm email</a></p>
+  <p style="font-size:13px;color:#555">If the button does not work, copy this link into your browser:<br/>${escapeHtml(verifyUrl)}</p>
+  <p style="font-size:13px;color:#555">Did not create an account? You can ignore this email.</p>
+</body>
+</html>`;
+}
+
+async function sendVerificationEmail({ to, name, token }) {
+  await sendMail({
+    to,
+    subject: "Confirm your Yuricart email",
+    html: verifyEmailHtml({ name, verifyUrl: `${siteUrl()}/verify-email?token=${token}` }),
+  });
+}
+
+function orderListEmailHtml(orders) {
+  const rows = orders
+    .map(
+      (order) =>
+        `<tr><td style="padding:8px 12px;border-bottom:1px solid #eee"><strong>#${escapeHtml(order.orderNumber)}</strong><br/><span style="color:#666;font-size:13px">KES ${Number(order.total || 0).toLocaleString()} · ${escapeHtml(order.orderStatus)}</span></td><td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right"><a href="${escapeHtml(orderTrackUrl(order.orderNumber))}" style="color:#003B73;font-weight:bold">Track</a></td></tr>`,
+    )
+    .join("");
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;color:#222">
+  <h2 style="color:#003B73">Your Yuricart orders</h2>
+  <p>You asked for the order numbers placed with this email address. Use a link to see where an order is.</p>
+  <table style="width:100%;border-collapse:collapse;margin:16px 0">${rows}</table>
+  <p style="font-size:13px;color:#555">Did not ask for this? You can ignore this email.</p>
+</body>
+</html>`;
+}
+
+async function sendOrderListEmail({ to, orders }) {
+  await sendMail({
+    to,
+    subject: "Your Yuricart order numbers",
+    html: orderListEmailHtml(orders),
   });
 }
 
@@ -206,8 +246,7 @@ async function sendAdminNewOrderEmail(order) {
     return 0;
   }
 
-  const baseUrl = (env.SITE_URL || env.FRONTEND_URL[0]).replace(/\/+$/, "");
-  const html = adminNewOrderEmailHtml(order, `${baseUrl}/admin/orders`);
+  const html = adminNewOrderEmailHtml(order, `${siteUrl()}/admin/orders`);
   const subject = `New order #${order.orderNumber} - KES ${Number(order.total || 0).toLocaleString()}`;
 
   const results = await Promise.all(
@@ -264,10 +303,16 @@ async function sendProductRequestEmail({ customerName, customerEmail, productNam
 module.exports = {
   sendOrderConfirmationEmail,
   sendOrderStatusEmail,
+  orderConfirmationEmailHtml,
+  orderStatusEmailHtml,
   sendAdminNewOrderEmail,
   adminNewOrderEmailHtml,
   getOrderNotifyRecipients,
   sendPasswordResetEmail,
+  sendVerificationEmail,
+  sendOrderListEmail,
+  orderListEmailHtml,
+  orderTrackUrl,
   sendProductRequestEmail,
   passwordResetEmailHtml,
 };

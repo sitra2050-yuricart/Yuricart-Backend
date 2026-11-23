@@ -26,7 +26,15 @@ const trackOrderParamsSchema = z.object({
   orderNumber: z.string().min(1),
 });
 
-const trackOrderQuerySchema = z.object({
+// Either the email used at checkout, or the signed token from an email link.
+const trackOrderQuerySchema = z
+  .object({
+    email: z.string().email().optional(),
+    token: z.string().min(20).max(1000).optional(),
+  })
+  .refine((q) => q.email || q.token, { message: "Email or token is required" });
+
+const orderLookupSchema = z.object({
   email: z.string().email(),
 });
 
@@ -61,6 +69,7 @@ module.exports = {
   createOrderSchema,
   trackOrderParamsSchema,
   trackOrderQuerySchema,
+  orderLookupSchema,
   adminOrderQuerySchema,
   updateOrderStatusSchema,
   orderNumberParamSchema,
