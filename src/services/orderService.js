@@ -6,10 +6,7 @@ const { parseSort } = require("../utils/query");
 const { incrementCouponUsage, validateCoupon } = require("./couponService");
 const { calculateShippingCost } = require("./shippingService");
 const { sendOrderConfirmationEmail, sendOrderStatusEmail } = require("./emailService");
-
-function getProductPrice(product) {
-  return product.salePrice ?? product.price;
-}
+const { getLineUnitPrice } = require("../utils/pricing");
 
 function matchVariant(variants, options) {
   if (!options || !Object.keys(options).length) return undefined;
@@ -68,7 +65,16 @@ async function resolveLineItems(items) {
     }
 
     const variant = matchVariant(product.variants, item.options);
-    const unitPrice = variant?.salePrice ?? variant?.price ?? getProductPrice(product);
+    const unitPrice = getLineUnitPrice(product, variant);
+
+    // Never accept an order line without a real price (a missing, 0 or invalid
+    // price used to be charged as KES 0).
+    if (!(unitPrice > 0)) {
+      throw new BadRequestError(
+        `"${product.title}" has no price set right now. Please contact the shop to order it.`,
+      );
+    }
+
     const availableStock = variant?.stock ?? product.stock;
 
     if (availableStock < item.quantity) {
@@ -323,6 +329,7 @@ async function assertOrderBelongsToUser(orderId, userId) {
 }
 
 module.exports = {
+  resolveLineItems,
   createOrder,
   getOrderByNumber,
   trackOrder,
