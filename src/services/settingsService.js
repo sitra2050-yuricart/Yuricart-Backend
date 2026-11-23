@@ -26,6 +26,15 @@ async function getPublicWhatsAppNumber() {
     : "254768054542";
 }
 
+async function getPublicShippingRate() {
+  const setting = await Settings.findOne({ key: "shippingRate", group: "general" })
+    .select("value -_id")
+    .lean();
+
+  const rate = Number(setting?.value);
+  return Number.isFinite(rate) && rate >= 0 && setting?.value !== "" ? rate : null;
+}
+
 async function upsertSettings(input) {
   const results = [];
 
@@ -42,4 +51,9 @@ async function upsertSettings(input) {
   return results;
 }
 
-module.exports = { getSettingsByGroup, getPublicWhatsAppNumber, upsertSettings };
+module.exports = {
+  getSettingsByGroup,
+  getPublicWhatsAppNumber,
+  getPublicShippingRate,
+  upsertSettings,
+};
