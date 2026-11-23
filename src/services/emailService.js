@@ -1,36 +1,33 @@
-const SibApiV3Sdk = require("sib-api-v3-sdk");
+const { Resend } = require("resend");
 const { env } = require("../config/env");
 const { escapeHtml } = require("../utils/escapeHtml");
 
-let defaultClient = null;
-let apiInstance = null;
+let resend = null;
 
-function initBrevo() {
-  if (defaultClient) return true;
-  if (!env.BREVO_API_KEY) {
-    console.warn("Email not sent — BREVO_API_KEY not configured.");
+function initResend() {
+  if (resend) return true;
+  if (!env.RESEND_API_KEY) {
+    console.warn("Email not sent — RESEND_API_KEY not configured.");
     return false;
   }
-  defaultClient = SibApiV3Sdk.ApiClient.instance;
-  const apiKey = defaultClient.authentications["api-key"];
-  apiKey.apiKey = env.BREVO_API_KEY;
-  apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+  resend = new Resend(env.RESEND_API_KEY);
   return true;
 }
 
-/** Sends one email. Returns true when Brevo accepted it, false if skipped or failed. */
+/** Sends one email. Returns true when Resend accepted it, false if skipped or failed. */
 async function sendMail({ to, subject, html }) {
-  if (!initBrevo()) return false;
+  if (!initResend()) return false;
   try {
-    const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
-    sendSmtpEmail.to = [{ email: to }];
-    sendSmtpEmail.sender = {
-      name: env.BREVO_FROM_NAME,
-      email: env.BREVO_FROM_EMAIL,
-    };
-    sendSmtpEmail.subject = subject;
-    sendSmtpEmail.htmlContent = html;
-    await apiInstance.sendTransacEmail(sendSmtpEmail);
+    const { error } = await resend.emails.send({
+      from: `${env.EMAIL_FROM_NAME} <${env.EMAIL_FROM_ADDRESS}>`,
+      to: [to],
+      subject,
+      html,
+    });
+    if (error) {
+      console.error("Failed to send email:", error.message);
+      return false;
+    }
     return true;
   } catch (error) {
     console.error("Failed to send email:", error.message);
@@ -204,7 +201,7 @@ async function sendAdminNewOrderEmail(order) {
   const recipients = getOrderNotifyRecipients();
   if (!recipients.length) {
     console.warn(
-      `New order #${order.orderNumber}: nobody was notified. Set ORDER_NOTIFY_EMAILS (or ADMIN_EMAIL) and BREVO_API_KEY.`,
+      `New order #${order.orderNumber}: nobody was notified. Set ORDER_NOTIFY_EMAILS (or ADMIN_EMAIL) and RESEND_API_KEY.`,
     );
     return 0;
   }

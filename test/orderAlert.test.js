@@ -10,17 +10,20 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const { env } = require("../src/config/env");
-const Sib = require("sib-api-v3-sdk");
+const resendModule = require("resend");
 
-// Record what would be sent to Brevo instead of calling the network.
+// Record what would be sent to Resend instead of calling the network.
 const sentMails = [];
 let failFor = null;
-// The SDK defines its methods per instance in the constructor, so replace the
-// constructor rather than patching the prototype.
-Sib.TransactionalEmailsApi = function TransactionalEmailsApi() {
-  this.sendTransacEmail = async (mail) => {
-    if (failFor && mail.to[0].email === failFor) throw new Error("brevo rejected");
-    sentMails.push(mail);
+resendModule.Resend = function Resend() {
+  this.emails = {
+    send: async (mail) => {
+      if (failFor && mail.to[0] === failFor) {
+        return { data: null, error: { message: "resend rejected" } };
+      }
+      sentMails.push(mail);
+      return { data: { id: "x" }, error: null };
+    },
   };
 };
 
@@ -79,8 +82,8 @@ test("the owner email has the order details, link and totals, and escapes custom
   assert.ok(html.includes("&lt;img"));
 });
 
-test("without a Brevo key nothing is sent and the owner count is zero", async () => {
-  env.BREVO_API_KEY = undefined;
+test("without a Resend key nothing is sent and the owner count is zero", async () => {
+  env.RESEND_API_KEY = undefined;
   sentMails.length = 0;
   const errors = [];
   const realError = console.error;
@@ -95,15 +98,15 @@ test("without a Brevo key nothing is sent and the owner count is zero", async ()
 });
 
 test("with a key, every recipient gets the alert", async () => {
-  env.BREVO_API_KEY = "test-key";
+  env.RESEND_API_KEY = "test-key";
   sentMails.length = 0;
   assert.equal(await sendAdminNewOrderEmail(order), 2);
-  assert.deepEqual(sentMails.map((m) => m.to[0].email), ["owner@gmail.com", "second@example.com"]);
+  assert.deepEqual(sentMails.map((m) => m.to[0]), ["owner@gmail.com", "second@example.com"]);
   assert.match(sentMails[0].subject, /New order #YC-20261123-0001 - KES 59,500/);
 });
 
 test("one failing recipient does not stop the others", async () => {
-  env.BREVO_API_KEY = "test-key";
+  env.RESEND_API_KEY = "test-key";
   sentMails.length = 0;
   failFor = "owner@gmail.com";
   const realError = console.error;
@@ -114,7 +117,7 @@ test("one failing recipient does not stop the others", async () => {
     console.error = realError;
     failFor = null;
   }
-  assert.deepEqual(sentMails.map((m) => m.to[0].email), ["second@example.com"]);
+  assert.deepEqual(sentMails.map((m) => m.to[0]), ["second@example.com"]);
 });
 
 test("no recipients configured warns instead of failing silently", async () => {
