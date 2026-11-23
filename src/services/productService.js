@@ -8,6 +8,7 @@ const { buildPaginationMeta, getPagination } = require("../utils/pagination");
 const { parseBoolean, parseSort } = require("../utils/query");
 const { ensureUniqueSlug } = require("../utils/slug");
 const { planSlugChange } = require("../utils/slugHistory");
+const { buildStockFilter } = require("../utils/productFilters");
 const { uploadBuffer, uploadVideoBuffer, deleteFromCloudinary, deleteMultipleFromCloudinary, PRODUCT_IMAGE_FOLDER, GALLERY_IMAGE_FOLDER, PRODUCT_VIDEO_FOLDER } = require("./uploadService");
 
 const productPopulate = [
@@ -78,6 +79,8 @@ async function buildProductFilter(query, options = {}) {
 
   const bestSeller = parseBoolean(query.bestSeller);
   if (bestSeller !== undefined) filter.bestSeller = bestSeller;
+
+  Object.assign(filter, buildStockFilter(query.inStock));
 
   if (query.tags) {
     filter.tags = { $in: query.tags.split(",").map((tag) => tag.trim()).filter(Boolean) };
