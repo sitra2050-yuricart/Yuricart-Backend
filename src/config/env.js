@@ -26,6 +26,18 @@ const envSchema = z.object({
   // the first FRONTEND_URL entry.
   SITE_URL: z.string().url().optional(),
   ADMIN_EMAIL: z.string().email().optional(),
+  // Who is emailed when an order is placed: one or more addresses separated by
+  // commas (for example the shop owner's Gmail). Falls back to ADMIN_EMAIL.
+  ORDER_NOTIFY_EMAILS: z
+    .string()
+    .optional()
+    .transform((value) =>
+      (value || "")
+        .split(",")
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean),
+    )
+    .pipe(z.array(z.string().email())),
   ADMIN_PASSWORD: z.string().min(8).optional(),
   ADMIN_NAME: z.string().optional(),
   CLOUDINARY_CLOUD_NAME: z.string().min(1, "CLOUDINARY_CLOUD_NAME is required"),
