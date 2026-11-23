@@ -2,7 +2,8 @@ const mongoose = require("mongoose");
 const { Brand } = require("../models/Brand");
 const { Category } = require("../models/Category");
 const { Product } = require("../models/Product");
-const { NotFoundError } = require("../utils/ApiError");
+const { BadRequestError, NotFoundError } = require("../utils/ApiError");
+const { validateProductPricing } = require("../utils/pricing");
 const { buildPaginationMeta, getPagination } = require("../utils/pagination");
 const { parseBoolean, parseSort } = require("../utils/query");
 const { ensureUniqueSlug } = require("../utils/slug");
@@ -258,7 +259,21 @@ async function getAdminProductById(id) {
   return product;
 }
 
+/**
+ * An admin form used to submit 0 for an empty "Sale price" field. Treat 0 as
+ * "no sale" so it is stored as unset rather than as a free price.
+ */
+function normalizeSalePrice(input) {
+  if ("salePrice" in input && Number(input.salePrice) === 0 && input.salePrice !== "") {
+    input.salePrice = undefined;
+  }
+}
+
 async function createProduct(input, files) {
+  normalizeSalePrice(input);
+  const pricingError = validateProductPricing(input.price, input.salePrice);
+  if (pricingError) throw new BadRequestError(pricingError);
+
   const slug = input.slug
     ? await ensureUniqueSlug(Product, input.slug)
     : await ensureUniqueSlug(Product, input.title);
@@ -301,6 +316,14 @@ async function createProduct(input, files) {
 async function updateProduct(id, input, files, removedGalleryPublicIds = [], removeVideo = false) {
   const existing = await Product.findById(id);
   if (!existing) throw new NotFoundError("Product not found");
+
+  normalizeSalePrice(input);
+  if ("price" in input || "salePrice" in input) {
+    const nextPrice = "price" in input ? input.price : existing.price;
+    const nextSalePrice = "salePrice" in input ? input.salePrice : existing.salePrice;
+    const pricingError = validateProductPricing(nextPrice, nextSalePrice);
+    if (pricingError) throw new BadRequestError(pricingError);
+  }
 
   let slug;
   if (input.slug) {
