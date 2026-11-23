@@ -232,12 +232,15 @@ async function getPublicHomepage() {
     })),
   );
 
-  const categories = (categoriesResult.items || []).map((cat) => ({
-    id: String(cat._id),
-    name: cat.name,
-    slug: cat.slug,
-    imageUrl: cat.image?.url || "",
-  }));
+  // Empty categories would lead to an empty page, so keep them off the homepage.
+  const categories = (categoriesResult.items || [])
+    .filter((cat) => (cat.productCount ?? 0) > 0)
+    .map((cat) => ({
+      id: String(cat._id),
+      name: cat.name,
+      slug: cat.slug,
+      imageUrl: cat.image?.url || "",
+    }));
 
   return {
     heroSlides,
