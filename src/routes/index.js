@@ -52,6 +52,8 @@ const publicOrdersRoutes = require("./public/orders.routes");
 const publicProductsRoutes = require("./public/products.routes");
 const publicProductRequestsRoutes = require("./public/productRequests.routes");
 const publicSettingsRoutes = require("./public/settings.routes");
+const publicRedirectsRoutes = require("./public/redirects.routes");
+const adminRedirectsRoutes = require("./admin/redirects.routes");
 
 const { categoryProductsRouter } = require("./public/products.routes");
 
@@ -91,6 +93,8 @@ router.use("/homepage", publicHomepageRoutes);
 
 router.use("/settings", publicSettingsRoutes);
 
+router.use("/redirects", publicRedirectsRoutes);
+
 router.use("/admin/dashboard", adminDashboardRoutes);
 
 router.use("/admin/products", adminProductsRoutes);
@@ -112,5 +116,7 @@ router.use("/admin/settings", adminSettingsRoutes);
 router.use("/admin/shipping", adminShippingRoutes);
 
 router.use("/admin/customers", adminCustomersRoutes);
+
+router.use("/admin/redirects", adminRedirectsRoutes);
 
 module.exports = router;

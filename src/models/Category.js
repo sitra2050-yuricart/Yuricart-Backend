@@ -24,6 +24,8 @@ const categorySchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    // Old slugs kept after a rename so old links redirect instead of 404.
+    previousSlugs: { type: [String], default: [], index: true },
     image: { type: imageDataSchema, default: () => ({}), set: normalizeImage },
     description: { type: String, trim: true },
     seoTitle: { type: String, trim: true, maxlength: 70 },
