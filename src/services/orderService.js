@@ -221,7 +221,7 @@ async function trackOrder(orderNumber, email) {
     email: email.toLowerCase(),
   })
     .select(
-      "orderNumber orderStatus paymentStatus paymentMethod trackingNumber items subtotal shipping discount total createdAt updatedAt",
+      "orderNumber orderStatus paymentStatus paymentMethod trackingNumber items subtotal shipping discount total customerName email phone address city county createdAt updatedAt",
     )
     .lean();
 
